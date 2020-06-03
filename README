@@ -1,0 +1,8 @@
+Board: ESP8266
+
+Used Pins:
+	2	in	Rain sensor reed contact
+
+Current Values are stored each hour in EEPROM
+
+Values can be requested via HTTP request
