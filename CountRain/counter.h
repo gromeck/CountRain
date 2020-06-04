@@ -7,7 +7,7 @@
 /*
 **	initialize the counter
 */
-void CounterInit(int counter_pin_in,int counter_pin_out,int eeprom_addr);
+void CounterInit(int counter_pin_in,int counter_pin_out,int counter_val_eeprom_addr,int counter_inc_eeprom_addr);
 
 /*
 **	overwrite the counter
