@@ -1,56 +1,60 @@
 <?php
 /*
-**	server side script to configure an Arduino
-**	which runs the powecount sketch and provides
+**	server side script to configure an ESP8266
+**	which runs the count sketch and provides
 **	a tiny http server
 **
-**	(c) 2013 by Christian.Lorenz@gromeck.de
+**	(c) 2020 by Christian.Lorenz@gromeck.de
 */
 
 /*
-**	hostname of the arduino
+**	hostname of the uController
 */
-define('ARDUINO','gmeter.site');
+define('UCONTROLLER','rmeter.site');
 define('CAPTCHA_LENGTH',3);
 
 /*
-**	if set, we will offer options to configure the device
+**	if set, we will offer options to configure the uController
 */
 $config = (@$_GET['config']) ? 1 : 0;
 
 if (@$_POST['set']) {
 	/*
-	**	write the data into arduino
+	**	write the data into the uController
 	*/
 	if ($_POST['captcharequest'] == $_POST['captchareply']) {
 		/*
 		**	build up the url
 		*/
-		$url = 'http://'.ARDUINO.'/?';
-		$msg = 'Arduino is '.ARDUINO.'<br>';
-		if (@$_POST['setmacaddr'] && $macaddr = @$_POST['macaddr']) {
-			$url .= "&macaddr=$macaddr";
-			$msg .= "Setting MAC address to $macaddr.<br>";
+		$url = 'http://'.UCONTROLLER.'/?';
+		$msg = 'uController is '.UCONTROLLER.'<br>';
+		if (@$_POST['setwifissid'] && $wifissid = @$_POST['wifissid']) {
+			$url .= "&wifissid=$wifissid";
+			$msg .= "Setting WiFi SSID to $wifissid.<br>";
 		}
-		if (@$_POST['setntpip'] && $ntpip = @$_POST['ntpip']) {
-			$url .= "&ntpip=$ntpip";
-			$msg .= "Setting NTP server IP address to $ntpip.<br>";
+		if (@$_POST['setwifipsk'] && $wifipsk = @$_POST['wifipsk']) {
+			$url .= "&wifipsk=$wifipsk";
+			$msg .= "Setting WiFi Password to $wifipsk.<br>";
 		}
-		if (@$_POST['setcounterval'] && $counterval = @$_POST['counterval']) {
-			$url .= "&counterval=$counterval";
-			$msg .= "Setting counter value to $counterval.<br>";
+		if (@$_POST['setntpserver'] && $ntpserver = @$_POST['ntpserver']) {
+			$url .= "&ntpserver=$ntpserver";
+			$msg .= "Setting NTP server IP address to $ntpserver.<br>";
 		}
-		if (@$_POST['setcounterinc'] && $counterinc = @$_POST['counterinc']) {
-			$url .= "&counterinc=$counterinc";
-			$msg .= "Setting counter increment to $counterinc.<br>";
+		if (@$_POST['setcounter'] && $counter = @$_POST['counter']) {
+			$url .= "&counter=$counter";
+			$msg .= "Setting counter value to $counter.<br>";
 		}
-		//$msg .= "<br>Arduino GET request:<br><pre>$url</pre>";
+		if (@$_POST['setincrement'] && $increment = @$_POST['increment']) {
+			$url .= "&increment=$increment";
+			$msg .= "Setting counter increment to $increment.<br>";
+		}
+		$msg .= "<br>uController GET request:<br><pre>$url</pre>";
 
 		/*
 		**	do the http request
 		*/
 		$reply = file_get_contents($url);
-		$msg .= "<br>Arduino reply:<br><pre>$reply</pre>";
+		$msg .= "<br>uController reply:<br><pre>$reply</pre>";
 	}
 	else {
 		/*
@@ -63,19 +67,25 @@ if (@$_POST['set']) {
 /*
 **	find out some network parameters
 */
-$macaddr = exec('arp '.ARDUINO.' | tail -1 | tr -s " " | cut -f3 -d" "');
+$macaddr = exec('arp '.UCONTROLLER.' | tail -1 | tr -s " " | cut -f3 -d" "');
 
 /*
-**	get the current values from the selected arduino
+**	get the current values from the selected uController
 */
-$arduinoreply = file_get_contents('http://'.ARDUINO.'/');
-//echo "<code>arduinoreply=".$arduinoreply."</code><br>";
-$counterval = preg_filter("/(.*)COUNTER (\d+)(.*)/msi","$2",$arduinoreply);
-$counterinc = preg_filter("/(.*)INCREMENT (\d+)(.*)/msi","$2",$arduinoreply);
-$ntpip = preg_filter("/(.*)NTPIP (\d+\.\d+\.\d+\.\d+)(.*)/msi","$2",$arduinoreply);
-//echo "<code>counterval=".$counterval."</code><br>";
-//echo "<code>counterinc=".$counterinc."</code><br>";
-//echo "<code>netip=".$netip."</code><br>";
+$ucontrollerreply = explode("\n",file_get_contents('http://'.UCONTROLLER.'/?all=1'));
+foreach ($ucontrollerreply as $reply) {
+	list ($key,$value) = explode(" ",$reply,2);
+	switch ($key) {
+		case 'COUNTER':		$counter = $value;		break;
+		case 'INCREMENT':	$increment = $value;	break;
+		case 'WIFI.SSID':	$wifissid = $value;		break;
+		case 'NTP.SERVER':	$ntpserver = $value;	break;
+	}
+}
+#echo "<code>counter=".$counter."</code><br>";
+#echo "<code>increment=".$increment."</code><br>";
+#echo "<code>wifissid=".$wifissid."</code><br>";
+#echo "<code>ntpserver=".$ntpserver."</code><br>";
 
 /*
 **	compute a simple captcha
@@ -89,9 +99,8 @@ $captcha = rand(pow(10,CAPTCHA_LENGTH - 1),pow(10,CAPTCHA_LENGTH) - 1);
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Arduino GAS</title>
+<title>&#181;Controller <?php print UCONTROLLER ?></title>
 <meta http-equiv="Pragma" content="no-cache">
-<link rel="stylesheet" href="rrd.css" type="text/css">
 <script language="JavaScript" type="text/javascript">
 function captcha_changed()
 {
@@ -113,14 +122,10 @@ function captcha_changed()
 function init()
 {
 	captcha_changed();
-	var counterval = document.getElementById('counterval');
+	var counter = document.getElementById('counter');
 
-	if (counterval) {
-		counterval.focus();
-		var val = counterval.value;
-		counterval.value = '';
-		counterval.value = val;
-	}
+	if (counter)
+		counter.focus();
 }
 </script>
 </head>
@@ -128,14 +133,38 @@ function init()
 <style>
 body {
 	margin:0;
-	padding-left:0.5em;
 	border:0;
-	font-size:1.5em;
+	border:0;
+	font-size:1.5rem;
 }
 h1 {
-	padding:0;
-	margin:0;
+	font-size:2rem;
 }
+.header {
+	background-color:#c0c0c0;
+	width:100%;
+	padding:0.1rem;
+	padding-left:1rem;
+}
+.content {
+	width:100%;
+	padding:0.5rem;
+}
+.footer {
+	background-color:#c0c0c0;
+	width:100%;
+	padding:1rem;
+}
+.message {
+	background-color:#a0f0a0;
+	padding:1rem;
+}
+
+.error {
+	background-color:#f0a0a0;
+	padding:1rem;
+}
+
 input[type="text"], input[type="number"] {
 	font-family:Courier,Monospace;
 	font-size:1.2em;
@@ -143,64 +172,75 @@ input[type="text"], input[type="number"] {
 	border:1px solid black;
 	padding:2px;
 }
+
 input[type="checkbox"] {
 	width:1em;
 }
+
 input[type="submit"], input[type="button"] {
-	font-size:1.2em;
-	width:5em;
-	border:1px solid black;
-	padding:2px;
+	font-size:1.5rem;
 	background-color:#f0f0f0;
-}
-#config {
-	width:10em;
+	border:1px solid black;
+	margin-right:0.3rem;
+	padding-left:1rem;
+	padding-right:1rem;
 }
 
 </style>
-<h1>Arduino GAS</h1>
+<div class=header>
+	<h1>&#181;Controller <?php print UCONTROLLER ?></h1>
+</div>
 <?php if (@$msg) { ?>
 <div style="background-color:#a0f0a0; padding:4px; margin:0px;"><b><font familiy="courier"><?php print $msg ?></font></b></div>
 <?php } ?>
 <?php if (@$error) { ?>
 <div style="background-color:#f0a0a0; padding:4px; margin:0px;"><b><font familiy="courier"><?php print $error ?></font></b></div>
 <?php } ?>
+<form method="POST">
+<div class=content>
 <table>
-	<form method="POST">
 	<?php if ($config) { ?>
 	<tr>
-		<td><input type="checkbox" name="setmacaddr" value="1"></td>
-		<td><b>MAC Address:</b></td>
+		<td><input type="checkbox" name="setwifissid" value="1"></td>
+		<td><b>Wifi SSID:</b></td>
 	</tr>
 	<tr>
 		<td></td>
-		<td><input type="text" name="macaddr" value="<?php print $macaddr ?>"></td>
+		<td><input type="text" name="wifissid" value="<?php print $wifissid ?>"></td>
 	</tr>
 	<tr>
-		<td><input type="checkbox" name="setntpip" value="1"></td>
-		<td><b>NTP Server IP Address:</b></td>
+		<td><input type="checkbox" name="setwifipsk" value="1"></td>
+		<td><b>Wifi Password:</b></td>
 	</tr>
 	<tr>
 		<td></td>
-		<td><input type="text" name="ntpip" value="<?php print $ntpip ?>"></td>
+		<td><input type="text" name="wifipsk" value="<?php print $wifipsk ?>"></td>
+	</tr>
+	<tr>
+		<td><input type="checkbox" name="setntpserver" value="1"></td>
+		<td><b>NTP Server Name:</b></td>
+	</tr>
+	<tr>
+		<td></td>
+		<td><input type="text" name="ntpserver" value="<?php print $ntpserver ?>"></td>
 	</tr>
 	<?php } ?>
 	<tr>
-		<td><input type="checkbox" name="setcounterval" value="1" checked></td>
+		<td><input type="checkbox" name="setcounter" value="1" checked></td>
 		<td><b>Counter Value:</b></td>
 	</tr>
 	<tr>
 		<td></td>
-		<td><input type="number" step="any" name="counterval" id="counterval" value="<?php print $counterval ?>"></td>
+		<td><input type="text" name="counter" id="counter" value="<?php print $counter ?>"></td>
 	</tr>
 	<?php if ($config) { ?>
 	<tr>
-		<td><input type="checkbox" name="setcounterinc" value="1"></td>
+		<td><input type="checkbox" name="setincrement" value="1"></td>
 		<td><b>Counter Increment:</b></td>
 	</tr>
 	<tr>
 		<td></td>
-		<td><input type="number" step="any" name="counterinc" value="<?php print $counterinc ?>"></td>
+		<td><input type="text" name="increment" value="<?php print $increment ?>"></td>
 	</tr>
 	<?php } ?>
 	<tr>
@@ -213,22 +253,15 @@ input[type="submit"], input[type="button"] {
 				onkeyup="captcha_changed()" maxlength=<?php print CAPTCHA_LENGTH ?>>
 			<input type="hidden" name="captcharequest" value="<?php print $captcha ?>"></td>
 	</tr>
-	<tr>
-		<td></td>
-		<td>
-			<input type="button" name="reload" value="Reload" onClick="window.document.location.href = '?';">
-			<input type="submit" name="set" id="setbutton" value="Set"></td>
-		</td>
-	</tr>
-	<?php if (!$config) { ?>
-	<tr>
-		<td></td>
-		<td>
-			<input type="button" id="config" name="config" value="Configure" onClick="window.document.location.href  = '?config=1';">
-		</td>
-	</tr>
-	<?php } ?>
-	</form>
 </table>
+</div>
+<div class=footer>
+	<input type="submit" name="set" id="setbutton" value="Set">
+	<input type="button" name="reload" id="reload" value="Reload" onClick="window.document.location.href = '?';">
+	<?php if (!$config) { ?>
+	<input type="button" name="config" id="config" value="Configure" onClick="window.document.location.href = '?config=1';">
+	<?php } ?>
+</div>
+</form>
 </body>
 </html>
