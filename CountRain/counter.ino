@@ -4,11 +4,12 @@
 **  the tipping bucket rain sensor from MISOL is used here
 **
 **  each tip is ...
-**    0.2794mm/m²  https://pi.gate.ac.uk/posts/2014/01/25/raingauge/
-**    0.3537mm/m²  https://www.robotics.org.za/WH-SP-RG
-**    0.01inch/m²  https://www.amazon.de/MISOL-weather-Ersatzteil-Wetterstation-Manometer/dp/B00QDMBXUA (aus Frage)
+**    0.2794mm/m²    https://pi.gate.ac.uk/posts/2014/01/25/raingauge/
+**    0.3537mm/m²    https://www.robotics.org.za/WH-SP-RG
+**    0.01inch/m²    https://www.amazon.de/MISOL-weather-Ersatzteil-Wetterstation-Manometer/dp/B00QDMBXUA (aus Frage)
 **     = 0.254mm/m²
-**    0,303mm/m²   https://www.amazon.de/MISOL-weather-Ersatzteil-Wetterstation-Manometer/dp/B00QDMBXUA (aus Rezension)
+**    0,303mm/m²     https://www.amazon.de/MISOL-weather-Ersatzteil-Wetterstation-Manometer/dp/B00QDMBXUA (aus Rezension)
+*     0.281853mm/m²  from own calibration (578 tips per 1.0 liter)
 */
 #include "counter.h"
 #include "eeprom.h"
@@ -21,28 +22,23 @@ static double _counter_val = 0.0;
 /*
 **  counter incremenent
 */
-static double _counter_inc = 0.3;
-
-/*
-**  minimum seconds between two triggers
-*/
-#define COUNTER_MIN_TRIGGER_CYCLE 1
+static double _counter_inc = 0.281853;
 
 /*
 **  minimum milli seconds the digital input has to be at HIGH
 **  before a valid trigger is detected
 */
-#define COUNTER_MIN_TRIGGER_LENGTH 50
+#define COUNTER_MIN_TRIGGER_LENGTH 5
+
+/*
+**  minimum milli seconds between two triggers
+*/
+#define COUNTER_MIN_TRIGGER_PAUSE  50
 
 /* 
 **  flag for the counter trigger
 */
 static volatile boolean _counter_triggered = false;
-
-/*
-**  timestamp when the counter was triggered last time
-*/
-static time_t _counter_triggered_time = 0;
 
 /*
 **  the address to read/write the counter into the EEPROM
@@ -84,26 +80,30 @@ static int _counter_pin_out;
 static void ICACHE_RAM_ATTR CounterTrigger()
 {
     static volatile unsigned long _last_low = 0;
+    static volatile unsigned long _last_high = 0;
     static volatile boolean _last_state = HIGH;
+    unsigned long now = millis();
 
     int state = digitalRead(_counter_pin_in) ? HIGH : LOW;
 
     if (state == _last_state)
         return;
 
-    if ((_last_state = state) == HIGH) {
+    if (state == HIGH) {
         /*
-        **    HIGH
+        **    check if this pulse is not too short and we had the minimum pause
         */
-        if (millis() - _last_low > COUNTER_MIN_TRIGGER_LENGTH)
+        if (now - _last_low > COUNTER_MIN_TRIGGER_LENGTH && now - _last_high > COUNTER_MIN_TRIGGER_PAUSE)
             _counter_triggered = true;
     }
-    else {
-        /*
-        **    LOW
-        */
-        _last_low = millis();
-    }
+
+    /*
+     * store last high and low timestamps
+     */
+    if ((_last_state = state) == HIGH)
+      _last_high = now;
+    else
+      _last_low = now;
 }
 
 /*
@@ -132,7 +132,6 @@ void CounterInit(int counter_pin_in,int counter_pin_out,int counter_val_eeprom_a
     */
     _counter_val_written = _counter_val;
     _counter_val_written_time = t;
-    _counter_triggered_time = t;
 
     /*
     **  configure GPIO
@@ -204,15 +203,12 @@ void CounterUpdate(void)
     **  dispatch on events
     */
     if (_counter_triggered) {
-        if (t >= _counter_triggered_time + COUNTER_MIN_TRIGGER_CYCLE) {
-            /*
-            **  counter pulse detected
-            */
-            _counter_val += _counter_inc;
-            _counter_triggered_time = t;
-            digitalWrite(_counter_pin_out,HIGH);
-            LogMsg("COUNTER: %.6lf",_counter_val);
-        }
+        /*
+        **  counter pulse detected
+        */
+        _counter_val += _counter_inc;
+        digitalWrite(_counter_pin_out,HIGH);
+        LogMsg("COUNTER: %.6lf",_counter_val);
         _counter_triggered = false;
     }
     else {
