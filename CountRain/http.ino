@@ -17,6 +17,14 @@ static ESP8266WebServer _WebServer(80);
 void HttpSetup(void)
 {
   _WebServer.on("/", []() {
+    bool allparams = false;
+    
+    if (_WebServer.hasArg(HTTP_GET_VAR_WIFI_ALLPARAMS)) {
+      /*
+       * set new Wifi SSID
+       */
+       allparams = (atoi(_WebServer.arg(HTTP_GET_VAR_WIFI_ALLPARAMS).c_str())) ? true : false;
+    }
     if (_WebServer.hasArg(HTTP_GET_VAR_WIFI_SSID)) {
       /*
        * set new Wifi SSID
@@ -59,8 +67,16 @@ void HttpSetup(void)
     dtostrf(CounterGetValue(),1,6,buffer);
     message += "COUNTER " + (String) buffer + "\n";
 
-    dtostrf(CounterGetIncrement(),1,6,buffer);
-    message += "INCREMENT " + (String) buffer + "\n";
+    if (allparams) {
+      /*
+       * all parameters should be returned
+       */
+      dtostrf(CounterGetIncrement(),1,6,buffer);
+      message += "INCREMENT " + (String) buffer + "\n";
+
+      message += "WIFI.SSID " + EepromReadString(EEPROM_ADDR_WIFI_SSID,EEPROM_SIZE_WIFI_SSID) + "\n";
+      message += "NTP.SERVER " + EepromReadString(EEPROM_ADDR_NTP_SERVER,EEPROM_SIZE_NTP_SERVER) + "\n";
+    }
 
     _WebServer.send(200,"text/plain",message);
   });
