@@ -1,7 +1,6 @@
 /*
-**  Sketch to count pulses from a gas counter
+**  Sketch to count pulses from a rain gauge
 **  and make them accessible via HTTP.
-**  Optionally 
 **
 **  Needed Hardware:
 **
@@ -11,10 +10,6 @@
 **    GPIO #2 (D4)  OUTPUT  activity LED -- PIN is also connected to the onboard LED
 **    GPIO #4 (D2)  OUTPUT  LED flashing upon trigger
 **    GPIO #5 (D1)  INPUT   closing switch on trigger
-**
-**  Used EEPROM layout:
-**    Address
-**     0 ..  3 => IP address of the NTP server
 **
 **  Runtime enviroment:
 **      DHCP   => device will ask for an IP address
