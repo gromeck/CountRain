@@ -1,6 +1,6 @@
 <?php
 /*
-**	server side script to configure an ESP8266
+**	server side script to configure an uController
 **	which runs the count sketch and provides
 **	a tiny http server
 **
