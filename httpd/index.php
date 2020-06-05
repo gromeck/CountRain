@@ -10,7 +10,7 @@
 /*
 **	hostname of the uController
 */
-define('UCONTROLLER','rmeter.site');
+define('UCONTROLLER','rainmeter.site');
 define('CAPTCHA_LENGTH',3);
 
 /*
